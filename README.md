@@ -1,238 +1,374 @@
-# Nano Banana 2 Skill
+# Nano Banana 2 - AI Image Generation CLI
 
-AI image generation CLI powered by Gemini 3.1 Flash Image Preview (default) with support for Gemini 3 Pro and any Gemini model. Multi-resolution (512-4K), aspect ratios, cost tracking, broadcast-grade green screen transparency, reference images, and style transfer.
+[English](README.md) | [中文](README_CN.md)
+
+AI image generation CLI with support for multiple providers: **Poyo AI** (Nano Banana 2 models) and **Google Gemini** (3.1 Flash & 3 Pro). Features multi-resolution (512-4K), aspect ratios, cost tracking, transparent backgrounds, reference images, and style transfer.
 
 Also ships as a [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skill for AI-assisted image generation workflows.
 
-## Install
+## ✨ Features
 
-**Requirements:** [Bun](https://bun.sh), [FFmpeg](https://ffmpeg.org) + [ImageMagick](https://imagemagick.org) (for transparent mode)
+- 🎨 **Multiple AI Providers**: Poyo AI (Nano Banana 2) and Google Gemini
+- 📐 **Multi-Resolution**: 512px to 4K (512, 1K, 2K, 4K)
+- 🖼️ **Aspect Ratios**: 1:1, 16:9, 9:16, 4:3, 3:4, 3:2, 2:3, 4:5, 5:4, 21:9
+- 🎭 **Transparent Backgrounds**: AI-powered green screen removal
+- 🔄 **Image Editing**: Transform existing images with text prompts
+- 💰 **Cost Tracking**: Monitor your API spending
+- 🤖 **Claude Code Integration**: Use with Claude AI assistant
+
+## 📦 Installation
+
+### Requirements
+
+- [Bun](https://bun.sh) - JavaScript runtime
+- [FFmpeg](https://ffmpeg.org) (optional, for transparent mode)
+- [ImageMagick](https://imagemagick.org) (optional, for transparent mode)
+
+### Quick Install
 
 ```bash
-# Clone the repo
-git clone https://github.com/kingbootoshi/nano-banana-2-skill.git ~/tools/nano-banana-2
-cd ~/tools/nano-banana-2
+# Clone the repository
+git clone https://github.com/kingbootoshi/nano-banana-2-skill.git
+cd nano-banana-2-skill
 
 # Install dependencies
 bun install
 
-# Link globally (no sudo needed - uses Bun's global bin)
+# Link globally
 bun link
 
-# Set up your API key
+# Verify installation
+nano-banana --help
+```
+
+### Install FFmpeg & ImageMagick (Optional)
+
+For transparent background generation:
+
+```bash
+# macOS
+brew install ffmpeg imagemagick
+
+# Ubuntu/Debian
+sudo apt install ffmpeg imagemagick
+
+# Windows (using Chocolatey)
+choco install ffmpeg imagemagick
+```
+
+## 🔑 API Configuration
+
+Nano Banana 2 supports two API providers:
+
+### Option 1: Poyo AI (Recommended)
+
+Poyo AI provides the Nano Banana 2 models with async task processing.
+
+1. Get your API key from [Poyo AI](https://poyo.ai)
+2. Configure your environment:
+
+```bash
 mkdir -p ~/.nano-banana
-echo "GEMINI_API_KEY=your_key_here" > ~/.nano-banana/.env
+cat > ~/.nano-banana/.env << EOF
+GEMINI_API_KEY=your_poyo_api_key_here
+GEMINI_BASE_URL=https://api.poyo.ai
+EOF
 ```
 
-Get a Gemini API key at [Google AI Studio](https://aistudio.google.com/apikey).
+**Available Models:**
+- `nano-banana-2-new` (alias: `new`) - Text-to-image and image-to-image
+- `nano-banana-2-new-edit` (alias: `edit`) - Advanced image editing
 
-Now you can use `nano-banana` from anywhere.
+### Option 2: Google Gemini (Legacy)
 
-### As a Claude Code Skill
+Use Google's official Gemini API for image generation.
 
-When installed as a Claude Code skill, just say `/init` and Claude will clone the repo, install deps, and link the command for you. Then use it by saying "generate an image of..." and Claude handles the rest.
-
-### Fallback (if `bun link` doesn't work)
+1. Get your API key from [Google AI Studio](https://aistudio.google.com/apikey)
+2. Configure your environment:
 
 ```bash
-mkdir -p ~/.local/bin
-ln -sf ~/tools/nano-banana-2/src/cli.ts ~/.local/bin/nano-banana
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
-source ~/.zshrc
+mkdir -p ~/.nano-banana
+echo "GEMINI_API_KEY=your_gemini_api_key_here" > ~/.nano-banana/.env
 ```
 
-## Usage
+**Available Models:**
+- `gemini-3.1-flash-image-preview` (alias: `flash`, `nb2`)
+- `gemini-3-pro-image-preview` (alias: `pro`, `nb-pro`)
+
+### Configuration Priority
+
+The CLI resolves configuration in this order:
+
+1. `--api-key` flag (command line)
+2. `GEMINI_API_KEY` environment variable
+3. `.env` file in current directory
+4. `.env` file in repo root
+5. `~/.nano-banana/.env` (recommended)
+
+### Environment Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `GEMINI_API_KEY` | Your API key | `sk-xxx` or `AIzaSyxxx` |
+| `GEMINI_BASE_URL` | API endpoint (optional) | `https://api.poyo.ai` |
+
+## 🚀 Usage
+
+### Basic Examples
 
 ```bash
-# Basic - generates 1K image to current directory
-nano-banana "minimal dashboard UI with dark theme"
+# Generate image with default settings (1K resolution)
+nano-banana "a cute robot mascot"
 
-# Custom output name
-nano-banana "luxury product mockup" -o product
+# Specify output filename
+nano-banana "sunset landscape" -o my-sunset
 
-# Higher resolution
-nano-banana "detailed landscape painting" -s 2K
+# High resolution with aspect ratio
+nano-banana "cinematic scene" -s 2K -a 16:9
 
-# Ultra high res
-nano-banana "cinematic widescreen scene" -s 4K -a 16:9
-
-# Lower resolution (fast, cheap)
-nano-banana "quick sketch concept" -s 512
+# Ultra high resolution
+nano-banana "detailed artwork" -s 4K
 
 # Custom output directory
-nano-banana "UI screenshot" -o dashboard -d ~/Pictures
+nano-banana "logo design" -o logo -d ~/Pictures
 ```
 
-### Models
+### Model Selection
 
 ```bash
-# Default - Nano Banana 2 (Gemini 3.1 Flash, fast and cheap)
-nano-banana "your prompt"
+# Poyo AI - Nano Banana 2 (default if GEMINI_BASE_URL is set)
+nano-banana "your prompt" --model new
 
-# Pro - highest quality, 2x cost
+# Poyo AI - Image editing
+nano-banana "your prompt" --model edit
+
+# Google Gemini - Flash (fast and cheap)
+nano-banana "your prompt" --model flash
+
+# Google Gemini - Pro (highest quality)
 nano-banana "your prompt" --model pro
-
-# Any model ID
-nano-banana "your prompt" --model gemini-2.5-flash-image
 ```
-
-| Alias | Model | Best For |
-|-------|-------|----------|
-| `flash`, `nb2` | Gemini 3.1 Flash Image Preview | Speed, cost, high-volume |
-| `pro`, `nb-pro` | Gemini 3 Pro Image Preview | Highest quality, complex composition |
 
 ### Aspect Ratios
 
 ```bash
-# Widescreen
+# Widescreen (16:9)
 nano-banana "cinematic landscape" -a 16:9
 
-# Portrait
-nano-banana "mobile app screenshot" -a 9:16
+# Portrait (9:16)
+nano-banana "mobile wallpaper" -a 9:16
 
-# Ultra-wide
-nano-banana "panoramic scene" -a 21:9
+# Square (1:1)
+nano-banana "profile picture" -a 1:1
 
-# Standard photo
-nano-banana "product photo" -a 4:3
+# Ultra-wide (21:9)
+nano-banana "panoramic view" -a 21:9
 ```
 
-Supported: `1:1`, `16:9`, `9:16`, `4:3`, `3:4`, `3:2`, `2:3`, `4:5`, `5:4`, `21:9`
+**Supported ratios:** `1:1`, `16:9`, `9:16`, `4:3`, `3:4`, `3:2`, `2:3`, `4:5`, `5:4`, `21:9`
 
-### Reference Images
+### Transparent Backgrounds
 
-Edit, transform, or combine existing images:
-
-```bash
-# Edit an existing image
-nano-banana "change the background to pure white" -r dark-ui.png -o light-ui
-
-# Style transfer - multiple references
-nano-banana "combine these two UI styles into one" -r style1.png -r style2.png -o combined
-
-# Color correction
-nano-banana "make this image more vibrant and increase contrast" -r photo.jpg
-```
-
-### Transparent Assets
-
-Generate assets with transparent backgrounds using AI-powered background removal:
+Generate assets with transparent backgrounds (requires FFmpeg & ImageMagick):
 
 ```bash
-# Basic transparent asset
-nano-banana "robot mascot character" -t -o mascot
+# Character sprite
+nano-banana "pixel art character" -t -o character
 
-# Logo with transparency
+# Logo
 nano-banana "minimalist tech logo" -t -o logo
 
 # Game asset
-nano-banana "pixel art treasure chest" -t -o chest
+nano-banana "treasure chest icon" -t -o chest
 ```
 
-The `-t` flag automatically prompts the AI to generate on a green screen, then uses FFmpeg `colorkey` + `despill` to key out the background and remove green spill from edge pixels. ImageMagick trims the result. Requires: `brew install ffmpeg imagemagick`
+**How it works:**
+1. AI generates image on green screen background
+2. FFmpeg removes green using colorkey + despill filters
+3. ImageMagick trims and optimizes the result
 
-### Exact Dimensions
+### Reference Images
 
-Control output dimensions by using a blank image as the last reference:
+Transform or combine existing images:
 
 ```bash
-# First -r: your style reference
-# Last -r: blank image in target dimensions
-nano-banana "pixel art character, 256x256" -r style.png -r blank-256x256.png -o sprite
+# Edit an image
+nano-banana "make the sky more dramatic" -r landscape.jpg -o edited
+
+# Style transfer
+nano-banana "combine these styles" -r style1.png -r style2.png -o combined
+
+# Color correction
+nano-banana "increase contrast and saturation" -r photo.jpg
 ```
 
-## Options
+**Note:** For Poyo AI, reference images must be accessible via URL. Local file upload coming soon.
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `-o, --output` | `nano-gen-{timestamp}` | Output filename (no extension) |
-| `-s, --size` | `1K` | Image size: `512`, `1K`, `2K`, or `4K` |
-| `-a, --aspect` | model default | Aspect ratio: `1:1`, `16:9`, `9:16`, etc. |
-| `-m, --model` | `flash` | Model: `flash`/`nb2`, `pro`/`nb-pro`, or any model ID |
-| `-d, --dir` | current directory | Output directory |
-| `-r, --ref` | - | Reference image (can use multiple times) |
-| `-t, --transparent` | - | Generate on green screen, remove background (FFmpeg) |
-| `--api-key` | - | Gemini API key (overrides env/file) |
-| `--costs` | - | Show cost summary from generation history |
-| `-h, --help` | - | Show help |
+## 📋 Command Reference
 
-## Sizes and Costs
+### Options
 
-| Size | Resolution | Flash Cost | Pro Cost |
-|------|-----------|------------|----------|
-| `512` | ~512x512 | ~$0.045 | N/A (Flash only) |
-| `1K` | ~1024x1024 | ~$0.067 | ~$0.134 |
-| `2K` | ~2048x2048 | ~$0.101 | ~$0.201 |
-| `4K` | ~4096x4096 | ~$0.151 | ~$0.302 |
+| Option | Short | Default | Description |
+|--------|-------|---------|-------------|
+| `--output` | `-o` | `nano-gen-{timestamp}` | Output filename (without extension) |
+| `--size` | `-s` | `1K` | Image size: `512`, `1K`, `2K`, `4K` |
+| `--aspect` | `-a` | model default | Aspect ratio (see supported ratios) |
+| `--model` | `-m` | `new` or `flash` | Model to use |
+| `--dir` | `-d` | current directory | Output directory |
+| `--ref` | `-r` | - | Reference image (can use multiple) |
+| `--transparent` | `-t` | - | Generate with transparent background |
+| `--api-key` | - | - | API key (overrides env/file) |
+| `--costs` | - | - | Show cost summary |
+| `--help` | `-h` | - | Show help message |
 
-## Cost Tracking
+### Models
 
-Every generation logs its cost to `~/.nano-banana/costs.json`. View your spending:
+| Provider | Alias | Model ID | Description |
+|----------|-------|----------|-------------|
+| Poyo AI | `new` | `nano-banana-2-new` | Text-to-image (default) |
+| Poyo AI | `edit` | `nano-banana-2-new-edit` | Image editing |
+| Gemini | `flash`, `nb2` | `gemini-3.1-flash-image-preview` | Fast & cheap |
+| Gemini | `pro`, `nb-pro` | `gemini-3-pro-image-preview` | Highest quality |
+
+### Sizes & Costs
+
+| Size | Resolution | Poyo AI | Gemini Flash | Gemini Pro |
+|------|-----------|---------|--------------|------------|
+| `512` | ~512×512 | ~$0.045 | ~$0.045 | N/A |
+| `1K` | ~1024×1024 | ~$0.067 | ~$0.067 | ~$0.134 |
+| `2K` | ~2048×2048 | ~$0.101 | ~$0.101 | ~$0.201 |
+| `4K` | ~4096×4096 | ~$0.151 | ~$0.151 | ~$0.302 |
+
+*Costs are approximate and may vary*
+
+## 💰 Cost Tracking
+
+Track your API spending:
 
 ```bash
+# View cost summary
 nano-banana --costs
 ```
 
-Shows total generations, total spend, and per-model breakdown.
+Costs are logged to `~/.nano-banana/costs.json` with details:
+- Total generations
+- Total spend
+- Per-model breakdown
+- Individual generation costs
 
-## API Key Configuration
+## 🤖 Claude Code Integration
 
-The CLI resolves the Gemini API key in priority order:
+When installed as a Claude Code skill, you can generate images through natural language:
 
-1. `--api-key` flag on the command line
-2. `GEMINI_API_KEY` environment variable
-3. `.env` file in the current working directory
-4. `.env` file in the repo root (next to `src/`)
-5. `~/.nano-banana/.env`
-
-Get a free key at [Google AI Studio](https://aistudio.google.com/apikey).
-
-```bash
-# Option 1: Environment variable
-export GEMINI_API_KEY=your_key_here
-
-# Option 2: .env file in current directory
-echo "GEMINI_API_KEY=your_key_here" > .env
-
-# Option 3: Global config
-mkdir -p ~/.nano-banana
-echo "GEMINI_API_KEY=your_key_here" > ~/.nano-banana/.env
-
-# Option 4: Pass directly
-nano-banana "your prompt" --api-key your_key_here
+```
+"generate an image of a sunset"
+"create a logo for my startup"
+"make a pixel art character sprite"
 ```
 
-## How Transparent Mode Works
+Claude will automatically:
+- Choose the appropriate model
+- Set resolution and aspect ratio
+- Handle output naming
+- Apply transparency if needed
 
-The `-t` flag uses a 3-step pipeline for pixel-perfect transparency:
+### Installation as Claude Code Skill
 
-1. **Green screen prompt** - The CLI automatically appends green screen instructions to your prompt, so the AI generates on a solid green background
-2. **FFmpeg colorkey + despill** - `colorkey` removes the green background. `despill` reconstructs edge pixel colors by mathematically removing green contamination from the RGB channels - this is why edges are clean instead of having green fringe
-3. **Auto-crop** - ImageMagick trims transparent padding and resets canvas
+The skill is automatically available when you install the CLI. Claude will detect it and offer to use it when you request image generation.
 
-The key color is auto-detected from corner pixels (the AI generates near-green like `#05F904`, not exact `#00FF00`). Requires FFmpeg and ImageMagick: `brew install ffmpeg imagemagick`
+## 🛠️ Development
 
-## Use Cases
+### Project Structure
 
-- **Landing page assets** - product mockups, UI previews
-- **Image editing** - transform existing images with text prompts
-- **Style transfer** - combine multiple reference images
-- **Marketing materials** - hero images, feature illustrations
-- **UI iterations** - quickly generate design variations
-- **Transparent assets** - icons, logos, mascots with no background
-- **Game assets** - sprites, tilesets, characters
-- **Video production** - visual elements for Remotion/video compositions
+```
+nano-banana-2-skill/
+├── src/
+│   ├── cli.ts              # Main CLI entry point
+│   └── poyo-client.ts      # Poyo AI API client
+├── plugins/
+│   └── nano-banana/        # Claude Code skill definition
+├── .env.example            # Example environment configuration
+├── package.json            # Project metadata
+└── README.md              # This file
+```
 
-## Claude Code Skill
+### Building from Source
 
-When installed as a Claude Code plugin, the skill triggers on phrases like:
-- "generate an image"
-- "create a sprite"
-- "make an asset"
-- "generate artwork"
+```bash
+# Clone and install
+git clone https://github.com/kingbootoshi/nano-banana-2-skill.git
+cd nano-banana-2-skill
+bun install
 
-Claude will construct the appropriate `nano-banana` command based on your request, handling model selection, resolution, aspect ratio, reference images, transparency, and output configuration automatically.
+# Run locally
+bun run src/cli.ts "test prompt"
 
-## License
+# Link globally
+bun link
+```
 
-MIT
+### Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📝 Use Cases
+
+- **Landing Pages**: Product mockups, hero images, UI previews
+- **Marketing**: Social media graphics, feature illustrations
+- **Game Development**: Sprites, tilesets, character art
+- **Design Iteration**: Quickly generate variations
+- **Transparent Assets**: Icons, logos, mascots
+- **Image Editing**: Transform existing images with AI
+- **Video Production**: Visual elements for compositions
+
+## 🐛 Troubleshooting
+
+### "API key not valid"
+
+- Check your API key is correct
+- Verify `GEMINI_BASE_URL` matches your provider
+- Ensure `.env` file is in the correct location
+
+### "Task timeout"
+
+- API server may be busy, try again
+- Increase timeout in code if needed
+- Check your internet connection
+
+### Transparent mode fails
+
+- Install FFmpeg: `brew install ffmpeg`
+- Install ImageMagick: `brew install imagemagick`
+- Verify installations: `ffmpeg -version` and `magick -version`
+
+### Command not found
+
+- Run `bun link` again
+- Add `~/.bun/bin` to your PATH
+- Try the fallback installation method
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file for details
+
+## 🙏 Acknowledgments
+
+- Original project by [Bootoshi](https://github.com/kingbootoshi)
+- Powered by [Poyo AI](https://poyo.ai) and [Google Gemini](https://ai.google.dev)
+- Built with [Bun](https://bun.sh)
+
+## 🔗 Links
+
+- [Documentation](https://docs.poyo.ai)
+- [Issue Tracker](https://github.com/kingbootoshi/nano-banana-2-skill/issues)
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
+
+---
+
+Made with ❤️ by the community

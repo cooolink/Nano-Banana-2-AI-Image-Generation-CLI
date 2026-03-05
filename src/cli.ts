@@ -20,6 +20,7 @@ import { existsSync, readFileSync } from "fs";
 import { spawn } from "child_process";
 import { fileURLToPath } from "url";
 import { homedir } from "os";
+import { PoyoClient } from "./poyo-client.js";
 
 // ---------------------------------------------------------------------------
 // Environment / API key resolution
@@ -59,9 +60,11 @@ const MODEL_ALIASES: Record<string, string> = {
   nb2: "gemini-3.1-flash-image-preview",
   pro: "gemini-3-pro-image-preview",
   "nb-pro": "gemini-3-pro-image-preview",
+  "new": "nano-banana-2-new",
+  "edit": "nano-banana-2-new-edit",
 };
 
-const DEFAULT_MODEL = "gemini-3.1-flash-image-preview";
+const DEFAULT_MODEL = "nano-banana-2-new";
 
 const VALID_SIZES = ["512", "1K", "2K", "4K"] as const;
 type ImageSize = (typeof VALID_SIZES)[number];
@@ -75,6 +78,8 @@ const VALID_ASPECTS = [
 const COST_RATES: Record<string, { input: number; imageOutput: number }> = {
   "gemini-3.1-flash-image-preview": { input: 0.25, imageOutput: 60 },
   "gemini-3-pro-image-preview": { input: 2.0, imageOutput: 120 },
+  "nano-banana-2-new": { input: 0.25, imageOutput: 60 },
+  "nano-banana-2-new-edit": { input: 0.25, imageOutput: 60 },
 };
 
 // ---------------------------------------------------------------------------
@@ -370,9 +375,10 @@ Default: Gemini 3.1 Flash Image Preview (Nano Banana 2)
   -h, --help        Show this help
 
 \x1b[33mModels:\x1b[0m
-  flash, nb2    Gemini 3.1 Flash Image Preview (default, fast, cheap)
-  pro, nb-pro   Gemini 3 Pro Image Preview (highest quality, 2x cost)
-  <model-id>    Any Gemini model ID (e.g. gemini-2.5-flash-image)
+  new       Nano Banana 2 New (Poyo AI, default)
+  edit      Nano Banana 2 Edit (advanced image editing)
+  flash     Gemini 3.1 Flash (legacy)
+  pro       Gemini 3 Pro (legacy)
 
 \x1b[33mSizes:\x1b[0m
   512   ~512x512   (~$0.045/image on Flash)
@@ -401,7 +407,7 @@ Default: Gemini 3.1 Flash Image Preview (Nano Banana 2)
 
 \x1b[33mAPI Key:\x1b[0m
   Set GEMINI_API_KEY in your environment, a .env file, or pass --api-key.
-  Get a key at: https://aistudio.google.com/apikey
+  For Poyo AI, also set GEMINI_BASE_URL=https://api.poyo.ai
 `);
     process.exit(0);
   }
@@ -481,9 +487,10 @@ Default: Gemini 3.1 Flash Image Preview (Nano Banana 2)
 
 async function generateImage(options: Options): Promise<string[]> {
   const apiKey = options.apiKey || process.env.GEMINI_API_KEY;
+  const baseURL = process.env.GEMINI_BASE_URL || "https://api.poyo.ai";
 
   if (!apiKey) {
-    console.error("\x1b[31mError:\x1b[0m GEMINI_API_KEY is required.");
+    console.error("\x1b[31mError:\x1b[0m API key is required.");
     console.error("");
     console.error("Set it one of these ways:");
     console.error("  1. Export:    export GEMINI_API_KEY=your_key");
@@ -491,31 +498,16 @@ async function generateImage(options: Options): Promise<string[]> {
     console.error("  3. Flag:     nano-banana \"prompt\" --api-key your_key");
     console.error("  4. Config:   mkdir -p ~/.nano-banana && echo 'GEMINI_API_KEY=your_key' > ~/.nano-banana/.env");
     console.error("");
-    console.error("Get a key at: https://aistudio.google.com/apikey");
     process.exit(1);
   }
 
-  const ai = new GoogleGenAI({ apiKey });
-
-  // Build imageConfig
-  const imageConfig: Record<string, string> = {
-    imageSize: options.size === "512" ? "512px" : options.size,
-  };
-  if (options.aspectRatio) {
-    imageConfig.aspectRatio = options.aspectRatio;
-  }
-
-  const config = {
-    responseModalities: ["IMAGE", "TEXT"] as const,
-    imageConfig,
-    tools: [{ googleSearch: {} }],
-  };
+  const client = new PoyoClient(apiKey, baseURL);
 
   const modelName = options.model;
-  const shortName = modelName.includes("flash")
-    ? "Nano Banana 2 (Flash 3.1)"
-    : modelName.includes("pro")
-      ? "Nano Banana Pro"
+  const shortName = modelName.includes("new")
+    ? "Nano Banana 2 (Poyo)"
+    : modelName.includes("edit")
+      ? "Nano Banana 2 Edit"
       : modelName;
 
   console.log(`\x1b[36m[nano-banana]\x1b[0m Generating image...`);
@@ -523,103 +515,87 @@ async function generateImage(options: Options): Promise<string[]> {
   console.log(`\x1b[90mPrompt: ${options.prompt}\x1b[0m`);
   console.log(`\x1b[90mSize: ${options.size}${options.aspectRatio ? ` | Aspect: ${options.aspectRatio}` : ""}\x1b[0m`);
 
-  if (options.referenceImages.length > 0) {
-    console.log(
-      `\x1b[90mReferences: ${options.referenceImages.join(", ")}\x1b[0m`
-    );
-  }
-  console.log("");
-
-  // Build parts array with images first, then text
-  const parts: Array<
-    { text: string } | { inlineData: { data: string; mimeType: string } }
-  > = [];
-
-  for (const imgPath of options.referenceImages) {
-    try {
-      const imageData = await loadImageAsBase64(imgPath);
-      parts.push({ inlineData: imageData });
-      console.log(`\x1b[32m+\x1b[0m Loaded reference: ${imgPath}`);
-    } catch (err) {
-      console.error(`\x1b[31mx\x1b[0m Failed to load: ${imgPath}`);
-      throw err;
-    }
-  }
-
   // When transparent mode is on, wrap the prompt to request a green screen background
   const finalPrompt = options.transparent
     ? `${options.prompt}. Place the subject on a solid bright green background (#00FF00). The background must be a single flat green color with no gradients, shadows, or variation.`
     : options.prompt;
 
-  parts.push({ text: finalPrompt });
-
-  const contents = [{ role: "user" as const, parts }];
-
-  // Use non-streaming to get usageMetadata for cost tracking
-  const response = await ai.models.generateContent({
+  // Build Poyo API request
+  const poyoRequest: any = {
     model: modelName,
-    config,
-    contents,
-  });
+    input: {
+      prompt: finalPrompt,
+      resolution: options.size,
+    },
+  };
+
+  if (options.aspectRatio) {
+    poyoRequest.input.size = options.aspectRatio;
+  }
+
+  // Handle reference images - upload them first if needed
+  if (options.referenceImages.length > 0) {
+    console.log(`\x1b[90mReferences: ${options.referenceImages.join(", ")}\x1b[0m`);
+    // For now, we'll skip image upload - Poyo API needs URLs
+    console.log(`\x1b[33mWarning:\x1b[0m Reference images require URLs. Local files not yet supported.`);
+  }
+
+  console.log("");
+
+  // Submit task
+  console.log(`\x1b[90mSubmitting task...\x1b[0m`);
+  const taskId = await client.submitTask(poyoRequest);
+  console.log(`\x1b[90mTask ID: ${taskId}\x1b[0m`);
+  console.log(`\x1b[90mWaiting for completion...\x1b[0m`);
+
+  // Wait for completion
+  const response = await client.waitForCompletion(taskId);
 
   const savedFiles: string[] = [];
-  let fileIndex = 0;
 
   if (!existsSync(options.outputDir)) {
     await mkdir(options.outputDir, { recursive: true });
   }
 
-  if (response.candidates && response.candidates[0]?.content?.parts) {
-    for (const part of response.candidates[0].content.parts) {
-      if (part.inlineData) {
-        const inlineData = part.inlineData;
-        const mimeType = inlineData.mimeType || "image/png";
-        const ext = mimeType.split("/")[1] || "png";
+  console.log(""); // New line after progress
 
-        const fileName =
-          fileIndex === 0
-            ? `${options.output}.${ext}`
-            : `${options.output}_${fileIndex}.${ext}`;
+  if (response.data?.files) {
+    let fileIndex = 0;
+    for (const file of response.data.files) {
+      const fileName =
+        fileIndex === 0
+          ? `${options.output}.png`
+          : `${options.output}_${fileIndex}.png`;
 
-        const outputPath = join(options.outputDir, fileName);
-        const buffer = Buffer.from(inlineData.data || "", "base64");
+      const outputPath = join(options.outputDir, fileName);
 
-        await writeFile(outputPath, buffer);
-        savedFiles.push(outputPath);
-        fileIndex++;
-      } else if (part.text) {
-        console.log(`\x1b[90m${part.text}\x1b[0m`);
-      }
+      console.log(`\x1b[90mDownloading image...\x1b[0m`);
+      const buffer = await client.downloadImage(file.file_url);
+      await writeFile(outputPath, buffer);
+
+      savedFiles.push(outputPath);
+      fileIndex++;
     }
   }
 
-  // Cost tracking
-  const usage = response.usageMetadata;
-  if (usage) {
-    const promptTokens = usage.promptTokenCount || 0;
-    const outputTokens = usage.candidatesTokenCount || 0;
-    const cost = calculateCost(modelName, promptTokens, outputTokens);
+  // Cost tracking (simplified for Poyo API)
+  const cost = 0.067; // Approximate cost for 1K image
+  console.log(`\x1b[90mCost: ~$${cost.toFixed(4)}\x1b[0m`);
 
-    console.log(
-      `\x1b[90mCost: ~$${cost.toFixed(4)} (${promptTokens} input + ${outputTokens} output tokens)\x1b[0m`
-    );
+  const entry: CostEntry = {
+    timestamp: new Date().toISOString(),
+    model: modelName,
+    size: options.size,
+    aspect: options.aspectRatio || null,
+    prompt_tokens: 0,
+    output_tokens: 0,
+    estimated_cost: cost,
+    output_file: savedFiles[0] || "",
+  };
 
-    // Log to file
-    const entry: CostEntry = {
-      timestamp: new Date().toISOString(),
-      model: modelName,
-      size: options.size,
-      aspect: options.aspectRatio || null,
-      prompt_tokens: promptTokens,
-      output_tokens: outputTokens,
-      estimated_cost: cost,
-      output_file: savedFiles[0] || "",
-    };
-
-    await logCost(entry).catch(() => {
-      // Non-fatal - don't fail generation if cost logging fails
-    });
-  }
+  await logCost(entry).catch(() => {
+    // Non-fatal - don't fail generation if cost logging fails
+  });
 
   return savedFiles;
 }

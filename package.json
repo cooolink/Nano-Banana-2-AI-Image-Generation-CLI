@@ -1,32 +1,64 @@
 {
   "name": "nano-banana-2",
-  "version": "2.0.0",
-  "description": "AI image generation CLI powered by Gemini 3.1 Flash (default) and Gemini 3 Pro. Multi-model, multi-resolution (512-4K), aspect ratios, cost tracking, green screen transparency, reference images, style transfer.",
+  "version": "2.1.0",
+  "description": "AI image generation CLI with support for Poyo AI (Nano Banana 2) and Google Gemini. Multi-resolution (512-4K), aspect ratios, cost tracking, transparent backgrounds, reference images, and style transfer.",
   "type": "module",
   "bin": {
     "nano-banana": "./src/cli.ts"
   },
   "scripts": {
     "start": "bun run src/cli.ts",
-    "dev": "bun run src/cli.ts"
+    "dev": "bun run src/cli.ts",
+    "test": "bun run src/cli.ts \"test image\" -o test"
   },
   "keywords": [
     "ai",
     "image-generation",
     "gemini",
+    "poyo-ai",
+    "nano-banana",
     "pixel-art",
     "cli",
     "green-screen",
     "chroma-key",
     "style-transfer",
-    "claude-code"
+    "claude-code",
+    "transparent-background",
+    "text-to-image",
+    "image-editing"
   ],
   "author": {
     "name": "Bootoshi",
     "url": "https://github.com/kingbootoshi"
   },
+  "contributors": [
+    {
+      "name": "Community Contributors",
+      "url": "https://github.com/kingbootoshi/nano-banana-2-skill/graphs/contributors"
+    }
+  ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kingbootoshi/nano-banana-2-skill.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kingbootoshi/nano-banana-2-skill/issues"
+  },
+  "homepage": "https://github.com/kingbootoshi/nano-banana-2-skill#readme",
+  "engines": {
+    "bun": ">=1.0.0"
+  },
   "dependencies": {
     "@google/genai": "^1.34.0"
-  }
+  },
+  "devDependencies": {},
+  "files": [
+    "src/",
+    "plugins/",
+    ".env.example",
+    "README.md",
+    "LICENSE",
+    "CONTRIBUTING.md"
+  ]
 }
