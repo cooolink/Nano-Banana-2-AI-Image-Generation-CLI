@@ -112,6 +112,42 @@ The CLI resolves configuration in this order:
 | `GEMINI_API_KEY` | Your API key | `sk-xxx` or `AIzaSyxxx` |
 | `GEMINI_BASE_URL` | API endpoint (optional) | `https://api.poyo.ai` |
 
+### 🔀 Dual API Quick Switch
+
+The project includes a switch script for easy switching between APIs:
+
+```bash
+# Switch to Google Gemini (supports local images, structure reference)
+cp .env.gemini.example ~/.nano-banana/.env
+
+# Switch to Poyo AI (Nano Banana 2 specialized models)
+cp .env.poyo.example ~/.nano-banana/.env
+```
+
+**Or use the switch script in the project directory:**
+```bash
+# Switch to Gemini
+source switch-api.sh gemini
+
+# Switch to Poyo
+source switch-api.sh poyo
+```
+
+**API Feature Comparison:**
+
+| Feature | Poyo AI | Google Gemini |
+|---------|---------|---------------|
+| Local image reference | ❌ URL only | ✅ Supports local files |
+| Structure-preserving generation | ❌ Not supported | ⚠️ Limited support |
+| Text-to-image | ✅ `new` model | ✅ `flash`/`pro` |
+| Image-to-image editing | ✅ `edit` model | ✅ Supported |
+| Async tasks | ✅ Supported | ❌ Synchronous |
+| Cost | ~$0.067/1K | ~$0.067/1K |
+
+**Recommendations:**
+- Need **local image reference** or **structure keeping** → Use **Gemini**
+- Pure text-to-image or image editing → Use **Poyo AI**
+
 ## 🚀 Usage
 
 ### Basic Examples
@@ -191,18 +227,35 @@ nano-banana "treasure chest icon" -t -o chest
 
 Transform or combine existing images:
 
+#### ✅ Google Gemini (Recommended) - Supports Local Files
+
 ```bash
-# Edit an image
-nano-banana "make the sky more dramatic" -r landscape.jpg -o edited
+# Use local image as reference (must use absolute path)
+nano-banana "Keep font structure, only fill interior" \
+  --model flash \
+  -r "/Users/a/Desktop/reference.png" \
+  -o output
 
-# Style transfer
-nano-banana "combine these styles" -r style1.png -r style2.png -o combined
-
-# Color correction
-nano-banana "increase contrast and saturation" -r photo.jpg
+# Structure-preserving generation example
+nano-banana "Strictly follow reference image outline, only fill interior patterns" \
+  --model flash \
+  -r "/full/path/to/reference.png" \
+  -a 16:9 -s 4K -o result
 ```
 
-**Note:** For Poyo AI, reference images must be accessible via URL. Local file upload coming soon.
+**Key Points:**
+- Must use **absolute path** (e.g., `/Users/a/Desktop/xxx.png`)
+- Supports structure-preserving generation (fonts, logos, etc.)
+- Model analyzes structure and style from reference
+
+#### Poyo AI - URL Only
+
+```bash
+# Style transfer
+nano-banana "combine these styles" -r https://example.com/style.png -o combined
+```
+
+**Note:** Poyo AI requires image URLs, does not support local file paths.
 
 ## 📋 Command Reference
 

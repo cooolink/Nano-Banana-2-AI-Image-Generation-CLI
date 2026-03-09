@@ -487,22 +487,28 @@ Default: Gemini 3.1 Flash Image Preview (Nano Banana 2)
 
 async function generateImage(options: Options): Promise<string[]> {
   const apiKey = options.apiKey || process.env.GEMINI_API_KEY;
-  const baseURL = process.env.GEMINI_BASE_URL || "https://api.poyo.ai";
+  const baseURL = process.env.GEMINI_BASE_URL;
 
   if (!apiKey) {
     console.error("\x1b[31mError:\x1b[0m API key is required.");
-    console.error("");
-    console.error("Set it one of these ways:");
-    console.error("  1. Export:    export GEMINI_API_KEY=your_key");
-    console.error("  2. .env:     Create .env with GEMINI_API_KEY=your_key");
-    console.error("  3. Flag:     nano-banana \"prompt\" --api-key your_key");
-    console.error("  4. Config:   mkdir -p ~/.nano-banana && echo 'GEMINI_API_KEY=your_key' > ~/.nano-banana/.env");
-    console.error("");
     process.exit(1);
   }
 
-  const client = new PoyoClient(apiKey, baseURL);
+  // Determine which API provider to use
+  const usePoyo = baseURL && baseURL.includes('poyo');
 
+  if (usePoyo) {
+    // Use Poyo AI
+    return generateWithPoyo(options, apiKey, baseURL);
+  } else {
+    // Use Google Gemini
+    return generateWithGemini(options, apiKey);
+  }
+}
+
+async function generateWithPoyo(options: Options, apiKey: string, baseURL: string): Promise<string[]> {
+  const client = new PoyoClient(apiKey, baseURL);
+  
   const modelName = options.model;
   const shortName = modelName.includes("new")
     ? "Nano Banana 2 (Poyo)"
@@ -515,12 +521,10 @@ async function generateImage(options: Options): Promise<string[]> {
   console.log(`\x1b[90mPrompt: ${options.prompt}\x1b[0m`);
   console.log(`\x1b[90mSize: ${options.size}${options.aspectRatio ? ` | Aspect: ${options.aspectRatio}` : ""}\x1b[0m`);
 
-  // When transparent mode is on, wrap the prompt to request a green screen background
   const finalPrompt = options.transparent
     ? `${options.prompt}. Place the subject on a solid bright green background (#00FF00). The background must be a single flat green color with no gradients, shadows, or variation.`
     : options.prompt;
 
-  // Build Poyo API request
   const poyoRequest: any = {
     model: modelName,
     input: {
@@ -533,31 +537,25 @@ async function generateImage(options: Options): Promise<string[]> {
     poyoRequest.input.size = options.aspectRatio;
   }
 
-  // Handle reference images - upload them first if needed
   if (options.referenceImages.length > 0) {
     console.log(`\x1b[90mReferences: ${options.referenceImages.join(", ")}\x1b[0m`);
-    // For now, we'll skip image upload - Poyo API needs URLs
     console.log(`\x1b[33mWarning:\x1b[0m Reference images require URLs. Local files not yet supported.`);
   }
 
   console.log("");
-
-  // Submit task
   console.log(`\x1b[90mSubmitting task...\x1b[0m`);
   const taskId = await client.submitTask(poyoRequest);
   console.log(`\x1b[90mTask ID: ${taskId}\x1b[0m`);
   console.log(`\x1b[90mWaiting for completion...\x1b[0m`);
 
-  // Wait for completion
   const response = await client.waitForCompletion(taskId);
-
   const savedFiles: string[] = [];
 
   if (!existsSync(options.outputDir)) {
     await mkdir(options.outputDir, { recursive: true });
   }
 
-  console.log(""); // New line after progress
+  console.log("");
 
   if (response.data?.files) {
     let fileIndex = 0;
@@ -568,18 +566,15 @@ async function generateImage(options: Options): Promise<string[]> {
           : `${options.output}_${fileIndex}.png`;
 
       const outputPath = join(options.outputDir, fileName);
-
       console.log(`\x1b[90mDownloading image...\x1b[0m`);
       const buffer = await client.downloadImage(file.file_url);
       await writeFile(outputPath, buffer);
-
       savedFiles.push(outputPath);
       fileIndex++;
     }
   }
 
-  // Cost tracking (simplified for Poyo API)
-  const cost = 0.067; // Approximate cost for 1K image
+  const cost = 0.067;
   console.log(`\x1b[90mCost: ~$${cost.toFixed(4)}\x1b[0m`);
 
   const entry: CostEntry = {
@@ -593,16 +588,94 @@ async function generateImage(options: Options): Promise<string[]> {
     output_file: savedFiles[0] || "",
   };
 
-  await logCost(entry).catch(() => {
-    // Non-fatal - don't fail generation if cost logging fails
-  });
-
+  await logCost(entry).catch(() => {});
   return savedFiles;
 }
 
-// ---------------------------------------------------------------------------
-// Main
-// ---------------------------------------------------------------------------
+async function generateWithGemini(options: Options, apiKey: string): Promise<string[]> {
+  const ai = new GoogleGenAI({ apiKey });
+  
+  const modelName = options.model;
+  const shortName = modelName.includes("flash")
+    ? "Gemini 3.1 Flash"
+    : modelName.includes("pro")
+      ? "Gemini 3 Pro"
+      : modelName;
+
+  console.log(`\x1b[36m[nano-banana]\x1b[0m Generating image...`);
+  console.log(`\x1b[90mModel: ${shortName}\x1b[0m`);
+  console.log(`\x1b[90mPrompt: ${options.prompt}\x1b[0m`);
+  console.log(`\x1b[90mSize: ${options.size}${options.aspectRatio ? ` | Aspect: ${options.aspectRatio}` : ""}\x1b[0m`);
+
+  const finalPrompt = options.transparent
+    ? `${options.prompt}. Place the subject on a solid bright green background (#00FF00).`
+    : options.prompt;
+
+  const parts: any[] = [{ text: finalPrompt }];
+  
+  // Load reference images if provided
+  for (const imgPath of options.referenceImages) {
+    try {
+      const imageData = await loadImageAsBase64(imgPath);
+      parts.unshift({ inlineData: imageData });
+      console.log(`\x1b[32m+\x1b[0m Loaded reference: ${imgPath}`);
+    } catch (err) {
+      console.error(`\x1b[31mx\x1b[0m Failed to load: ${imgPath}`);
+    }
+  }
+
+  console.log("");
+  console.log(`\x1b[90mGenerating...\x1b[0m`);
+
+  const response = await ai.models.generateContent({
+    model: modelName,
+    contents: [{ role: "user", parts }],
+    config: {
+      responseModalities: ["IMAGE", "TEXT"],
+    },
+  });
+
+  const savedFiles: string[] = [];
+
+  if (!existsSync(options.outputDir)) {
+    await mkdir(options.outputDir, { recursive: true });
+  }
+
+  let fileIndex = 0;
+  if (response.candidates?.[0]?.content?.parts) {
+    for (const part of response.candidates[0].content.parts) {
+      if (part.inlineData) {
+        const mimeType = part.inlineData.mimeType || "image/png";
+        const ext = mimeType.split("/")[1] || "png";
+        const fileName = fileIndex === 0
+          ? `${options.output}.${ext}`
+          : `${options.output}_${fileIndex}.${ext}`;
+        const outputPath = join(options.outputDir, fileName);
+        const buffer = Buffer.from(part.inlineData.data || "", "base64");
+        await writeFile(outputPath, buffer);
+        savedFiles.push(outputPath);
+        fileIndex++;
+      }
+    }
+  }
+
+  const cost = options.size === "512" ? 0.045 : options.size === "2K" ? 0.101 : options.size === "4K" ? 0.151 : 0.067;
+  console.log(`\x1b[90mCost: ~$${cost.toFixed(4)}\x1b[0m`);
+
+  const entry: CostEntry = {
+    timestamp: new Date().toISOString(),
+    model: modelName,
+    size: options.size,
+    aspect: options.aspectRatio || null,
+    prompt_tokens: 0,
+    output_tokens: 0,
+    estimated_cost: cost,
+    output_file: savedFiles[0] || "",
+  };
+
+  await logCost(entry).catch(() => {});
+  return savedFiles;
+}
 
 const parsed = parseArgs();
 

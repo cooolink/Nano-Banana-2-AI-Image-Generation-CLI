@@ -112,6 +112,42 @@ CLI 按以下顺序解析配置：
 | `GEMINI_API_KEY` | 你的 API 密钥 | `sk-xxx` 或 `AIzaSyxxx` |
 | `GEMINI_BASE_URL` | API 端点（可选） | `https://api.poyo.ai` |
 
+### 🔀 双 API 快速切换
+
+项目内置了切换脚本，方便在两个 API 之间快速切换：
+
+```bash
+# 切换到 Google Gemini（支持本地图片、结构参考）
+cp .env.gemini.example ~/.nano-banana/.env
+
+# 切换到 Poyo AI（Nano Banana 2 专用模型）
+cp .env.poyo.example ~/.nano-banana/.env
+```
+
+**或者在项目目录使用切换脚本：**
+```bash
+# 切换到 Gemini
+source switch-api.sh gemini
+
+# 切换到 Poyo
+source switch-api.sh poyo
+```
+
+**API 功能对比：**
+
+| 功能 | Poyo AI | Google Gemini |
+|------|---------|---------------|
+| 本地图片参考 | ❌ 仅支持 URL | ✅ 支持本地文件 |
+| 结构保持生成 | ❌ 不支持 | ⚠️ 有限支持 |
+| 文生图 | ✅ `new` 模型 | ✅ `flash`/`pro` |
+| 图生图编辑 | ✅ `edit` 模型 | ✅ 支持 |
+| 异步任务 | ✅ 支持 | ❌ 同步生成 |
+| 成本 | ~$0.067/1K | ~$0.067/1K |
+
+**使用建议：**
+- 需要**本地图片参考**或**结构保持** → 用 **Gemini**
+- 纯文生图或图生图编辑 → 用 **Poyo AI**
+
 ## 🚀 使用方法
 
 ### 基础示例
@@ -191,18 +227,35 @@ nano-banana "宝箱图标" -t -o chest
 
 转换或组合现有图像：
 
+#### ✅ Google Gemini（推荐）- 支持本地文件
+
 ```bash
-# 编辑图像
-nano-banana "让天空更有戏剧性" -r landscape.jpg -o edited
+# 使用本地图片作为参考（必须使用绝对路径）
+nano-banana "保持字体结构，仅填充内部" \
+  --model flash \
+  -r "/Users/a/Desktop/reference.png" \
+  -o output
 
-# 风格迁移
-nano-banana "组合这些风格" -r style1.png -r style2.png -o combined
-
-# 色彩校正
-nano-banana "增加对比度和饱和度" -r photo.jpg
+# 结构保持生成示例
+nano-banana "严格遵循参考图的字体外轮廓，仅在内部填充图案" \
+  --model flash \
+  -r "/完整路径/参考图.png" \
+  -a 16:9 -s 4K -o result
 ```
 
-**注意：** 对于 Poyo AI，参考图像必须通过 URL 访问。本地文件上传即将推出。
+**关键要点：**
+- 必须使用**绝对路径**（如 `/Users/a/Desktop/xxx.png`）
+- 支持结构保持生成（字体、Logo 等）
+- 模型会分析参考图的结构和风格
+
+#### Poyo AI - 仅支持 URL
+
+```bash
+# 风格迁移
+nano-banana "组合这些风格" -r https://example.com/style.png -o combined
+```
+
+**注意：** Poyo AI 需要图片 URL，不支持本地文件路径。
 
 ## 📋 命令参考
 
